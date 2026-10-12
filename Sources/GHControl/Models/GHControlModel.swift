@@ -1,5 +1,6 @@
 import Combine
 import Foundation
+import IOKit
 
 @MainActor
 final class GHControlModel: ObservableObject {
@@ -12,20 +13,48 @@ final class GHControlModel: ObservableObject {
 
     private var telemetryTask: Task<Void, Never>?
     private var didWriteTelemetrySnapshot = false
+    private var didCheckStalePowerLimit = false
 
     func refresh() {
         guard !isRefreshing else { return }
         isRefreshing = true
+        let shouldCheckStalePowerLimit = !didCheckStalePowerLimit
         Task {
-            let (result, powerState) = await Task.detached(priority: .utility) {
+            let (result, powerState, recoveryMessage, didReadPowerLimit) = await Task.detached(priority: .utility) {
                 let snapshot = HardwareDiscoveryService.discover()
-                let powerState = AMDPackagePowerControlService.readState(
-                    targetGPURegistryPath: snapshot.primaryAMDDriverNode?.registryPath
+                let targetPath = snapshot.primaryAMDDriverNode?.registryPath
+                var powerState = AMDPackagePowerControlService.readState(
+                    targetGPURegistryPath: targetPath
                 )
-                return (snapshot, powerState)
+                var recoveryMessage: String?
+                if shouldCheckStalePowerLimit,
+                   let cachedWatts = powerState.cachedLimitReportedValue,
+                   cachedWatts != 75,
+                   let targetPath {
+                    let recovery = AMDPackagePowerControlService.applyPackagePowerLimit(
+                        targetGPURegistryPath: targetPath,
+                        watts: 75
+                    )
+                    if let recoveredState = recovery.state {
+                        powerState = recoveredState
+                    }
+                    if recovery.writeIOReturn == KERN_SUCCESS,
+                       recovery.state?.cachedLimitReportedValue == 75 {
+                        recoveryMessage = "检测到上次运行遗留的 \(cachedWatts) W 设置，已在启动时恢复到 75 W。此读数是驱动缓存，不是 SMU 硬件上限读回。"
+                    } else {
+                        recoveryMessage = "检测到上次运行遗留的 \(cachedWatts) W 设置，但启动时未能确认恢复到 75 W。请检查驱动连接并手动恢复。\(recovery.message)"
+                    }
+                }
+                return (snapshot, powerState, recoveryMessage, powerState.cachedLimitReportedValue != nil)
             }.value
             snapshot = result
             packagePowerControlState = powerState
+            if didReadPowerLimit {
+                didCheckStalePowerLimit = true
+            }
+            if let recoveryMessage {
+                powerWriteMessage = recoveryMessage
+            }
             do {
                 _ = try DiagnosticReport.writeLatest(
                     snapshot: result,
@@ -73,6 +102,30 @@ final class GHControlModel: ObservableObject {
             }
             isApplyingPowerLimit = false
         }
+    }
+
+    func restoreDefaultPowerLimitForExit() -> (success: Bool, detail: String) {
+        guard !isApplyingPowerLimit else {
+            return (false, "功耗设置仍在执行，请稍后再退出。")
+        }
+        guard let targetPath = packagePowerControlState?.targetGPUPath
+                ?? snapshot?.primaryAMDDriverNode?.registryPath else {
+            return (false, "没有可用的目标 GPU 驱动路径，无法发送 75 W 恢复值。")
+        }
+
+        let result = AMDPackagePowerControlService.applyPackagePowerLimit(
+            targetGPURegistryPath: targetPath,
+            watts: 75
+        )
+        if let state = result.state {
+            packagePowerControlState = state
+        }
+        guard result.writeIOReturn == KERN_SUCCESS,
+              result.state?.cachedLimitReportedValue == 75 else {
+            return (false, "75 W 恢复写入未得到驱动 last-set 缓存确认。\(result.message)")
+        }
+        powerWriteMessage = "退出前已发送 75 W 默认值；AMD 驱动 last-set 缓存读回 75 W。"
+        return (true, "已恢复到 75 W 默认值。")
     }
 
     func startTelemetryPolling() {

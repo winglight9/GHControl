@@ -1,6 +1,6 @@
 # GH Control 产品与内核设计文档
 
-版本：0.7.0 开发预览  
+版本：0.7.1 开发预览
 更新日期：2026-10-12  
 目标平台：macOS Hackintosh · Intel Hades Canyon · Radeon RX Vega M GH  
 状态：可运行开发版；目标 GPU 下发现 6 个 `AtiAppServices`，程序通过 type `0x81` selector 2 调用 CWDDE `0x6e` 设置 package power limit。固定 GPU 负载对照下，50 W 设置时驱动报告的当前功耗读数中位数约从 67 W 降到 58 W。应用滑杆限定在 50–75 W，负载对照点为 50、60、75 W，中间档位没有逐项压力测试；`0x96` 仍只是驱动缓存，不是硬件上限读回。OD6 百分比 `0x47` 和 VID offset `0x51` 均未开放。
@@ -47,6 +47,7 @@ GH Control 是一个独立 macOS GPU 调节工具，目标是把 Windows Radeon 
 - 已从驱动公开的 `ATY,bin_image` 解析出 64 KiB 镜像及其中 701 B 的 ATOM PowerPlay v7.1 表、rev 4 Polaris PowerTune 子表；记录镜像和 PowerPlay 表 SHA-256。镜像内容本身不证明它来自实体卡 ROM。
 - 已用 IOKit 每两秒读取 `AMDRadeonX4000_AMDEllesmereGraphicsAccelerator` 的 `PerformanceStatistics`，界面显示驱动报告的功耗、温度、核心/显存频率与 GPU 活动率。
 - 已实现 50–75 W 运行时功耗上限滑杆、应用按钮和恢复 75 W 按钮；写入前要求目标 endpoint 和 `0x96` 缓存查询可用，写入后显示驱动缓存与实时功耗。固定 GPU 负载对照中，50 W 设置的驱动报告功耗读数中位数约为 58 W，对照 75 W 时约为 67 W。
+- 完全退出前会重新发送 75 W 请求，并要求 `0x96` last-set 缓存读回 75 W；无法确认时会取消退出。启动时若发现上次运行遗留的非 75 W 请求，会尝试恢复 75 W。强制结束或进程崩溃无法执行退出回调，因此遗留值在下次手动启动时恢复；缓存读数不是 SMU 硬件上限读回。
 - 对驱动公开镜像中声明 TDP 75 W 的表，生成 70 W 候选 plist：只改 TDP、BatteryPowerLimit、SmallPowerLimit、MaximumPowerDeliveryLimit、BoostPowerLimit 中高于目标的字段；其他字节原样保留。另可导出该镜像表用于回退；不称其为已核实的实体卡原厂表。
 - plist 使用 WhateverGreen `PP,` 前缀并指向本机配置副本中已有的 GPU 路径；用户仍需对照当前 EFI 后手动合并。
 - 只读探测目标 GPU 下的 `AtiDeviceControl` / `AppleGraphicsDeviceControlClient`：记录 IOKit 路径、声明的 user-client 类及 `IOServiceOpen(type 0)` 返回码；不调用任何 AGDC selector。当前本机返回 `kIOReturnNotPermitted (0xe00002e2)`。

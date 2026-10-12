@@ -75,6 +75,12 @@ struct MainWindowView: View {
             GHControlAppDelegate.shared?.setOpenMainWindowAction {
                 openWindow(id: "main")
             }
+            GHControlAppDelegate.shared?.setRestorePowerLimitAction { [weak model] in
+                guard let model else {
+                    return (false, "GPU 功耗控制状态不可用，无法恢复默认值。")
+                }
+                return model.restoreDefaultPowerLimitForExit()
+            }
             GHControlAppDelegate.shared?.setDockIconVisible(showDockIcon)
         }
         .onChange(of: showDockIcon) { visible in

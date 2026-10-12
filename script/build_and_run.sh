@@ -5,7 +5,7 @@ MODE="${1:-run}"
 APP_NAME="GHControl"
 BUNDLE_ID="local.hades.GHControl"
 MIN_SYSTEM_VERSION="13.0"
-APP_VERSION="0.7.0"
+APP_VERSION="0.7.1"
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 DIST_DIR="$ROOT_DIR/dist"

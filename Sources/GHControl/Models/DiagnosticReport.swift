@@ -14,7 +14,7 @@ struct DiagnosticReport: Codable {
         packagePowerControlState: PackagePowerControlState? = nil
     ) {
         generatedAt = Date()
-        appVersion = "0.7.0"
+        appVersion = "0.7.1"
         hardwareSnapshot = snapshot
         gpuTelemetry = telemetry
         self.packagePowerControlState = packagePowerControlState

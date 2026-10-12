@@ -11,8 +11,11 @@
 - Runtime GPU package-power limit from **50 W to 75 W** in 5 W steps, with Apply and Restore 75 W actions.
 - Live AMD-driver readings for GPU power, temperature, core clock, and memory clock.
 - Compact main screen; driver, Registry, PowerPlay, voltage and OD6 diagnostics remain available under **GPU Connection**.
-- Menu bar icon that opens the main window, follows the macOS light/dark appearance, and can run without a Dock icon.
-- No login-item or automatic-start option. Closing the window leaves the app available from the menu bar.
+- Menu bar icon that opens the single main window, follows the macOS light/dark appearance, and can run without a Dock icon.
+- Closing the window leaves the app available from the menu bar. Use the app menu, ⌘Q, or right-click the menu bar icon to quit completely.
+- Quitting asks for confirmation, always sends the default 75 W request again, and checks the driver's last-set cache. If the driver does not confirm it, GH Control stays open so you can retry.
+- On launch, GH Control detects a non-75 W request left by an earlier run and attempts to restore 75 W. This also recovers a stale setting on the next manual launch after an app crash or forced termination.
+- No login-item or automatic-start option.
 - Bilingual interface and installation instructions.
 
 ## Hardware control and limitations
@@ -64,15 +67,17 @@ GH Control 是面向 Intel Hades Canyon 冥王峡谷中 **Radeon RX Vega M GH** 
 - 运行时 GPU 功耗上限：**50–75 W**，每档 5 W，支持应用设置和恢复 75 W。
 - 显示 AMD 驱动报告的 GPU 实时功耗、温度、核心频率和显存频率。
 - 首页聚焦滑杆与实时状态；驱动、Registry、PowerPlay、电压和 OD6 诊断放在“显卡连接”栏目。
-- 菜单栏单色图标点击后打开主窗口；界面跟随 macOS 浅色/深色外观，可关闭 Dock 图标。
-- 不提供登录项或开机自启动。关闭窗口后，应用继续留在菜单栏运行。
+- Dock 点击会复用单个主窗口；菜单栏单色图标点击后打开窗口，右键可选择“打开”或“退出”。界面跟随 macOS 浅色/深色外观，可关闭 Dock 图标。
+- 关闭窗口后应用继续留在菜单栏运行。通过 GH Control 应用菜单、⌘Q 或菜单栏图标右键菜单完全退出时，会先提醒、重新发送 75 W 默认请求并核对驱动 last-set 缓存；驱动未确认时，应用保持打开，让用户重试。
+- 启动时会检查上次运行遗留的非 75 W 请求并尝试恢复 75 W；应用崩溃或被强制结束后，下次手动打开时也会进行这项恢复。
+- 不提供登录项或开机自启动。
 - 界面和安装说明提供中英文。
 
 ### 硬件控制与限制
 
 运行时控制通过 Apple 私有 AMD `AtiAppServices` / CWDDE 接口下发：user-client type `0x81`、selector `2`、命令 `0x6e`。在目标机器的固定负载对照中，75 W 请求对应的驱动实时功耗中位数约为 67 W，50 W 请求约为 58 W。负载对照点为 50 W、60 W 和 75 W；滑杆其他档位尚未逐一做独立压力测试。
 
-“驱动记录”来自命令 `0x96`，是驱动最后一次设置值的软件缓存，**不是独立的硬件功耗上限回读**。实时功耗由 AMD 驱动报告，可能高于请求值。电压和频率仍由 GPU 驱动自动管理。GH Control 不提供电压偏移、手动频率曲线、风扇控制，也不保证风扇一定降速；整机风扇仍由固件管理。
+“驱动记录”来自命令 `0x96`，是驱动最后一次设置值的软件缓存，**不是独立的硬件功耗上限回读**。实时功耗由 AMD 驱动报告，可能高于请求值。电压和频率仍由 GPU 驱动自动管理。GH Control 不提供电压偏移、手动频率曲线、风扇控制，也不保证风扇一定降速；整机风扇仍由固件管理。macOS 的强制结束或进程崩溃无法执行退出回调；本应用会在下次手动启动时检查并恢复遗留的非 75 W 请求。
 
 应用依赖 macOS 版本相关的 AMD 私有驱动接口，面向经过验证的 RX Vega M GH 配置。本应用不会修改 EFI、NVRAM、显卡 VBIOS 或驱动文件，也不要求重启。“显卡连接”中的 PowerPlay 启动配置候选和 Windows Adrenalin 配置对比属于独立的技术功能，不等于首页的运行时滑杆。
 

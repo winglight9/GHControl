@@ -6,6 +6,8 @@ final class GHControlAppDelegate: NSObject, NSApplicationDelegate {
 
     private var statusItem: NSStatusItem?
     private var openMainWindowAction: (() -> Void)?
+    private var restorePowerLimitAction: (() -> (success: Bool, detail: String))?
+    private var isOpeningMainWindow = false
 
     override init() {
         super.init()
@@ -34,6 +36,33 @@ final class GHControlAppDelegate: NSObject, NSApplicationDelegate {
         openMainWindowAction = action
     }
 
+    func setRestorePowerLimitAction(_ action: @escaping () -> (success: Bool, detail: String)) {
+        restorePowerLimitAction = action
+    }
+
+    func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        NSLog("GH Control received a normal termination request.")
+        sender.activate(ignoringOtherApps: true)
+        let confirmation = NSAlert()
+        confirmation.alertStyle = .warning
+        confirmation.messageText = "退出 GH Control？"
+        confirmation.informativeText = "退出前会重新发送 75 W 默认请求，并确认 AMD 驱动 last-set 缓存读回 75 W。该缓存不是实时硬件上限读回。完全退出后，当前低功耗请求将取消；要继续调节需重新打开 GH Control。"
+        confirmation.addButton(withTitle: "恢复默认并退出")
+        confirmation.addButton(withTitle: "取消")
+        guard confirmation.runModal() == .alertFirstButtonReturn else {
+            return .terminateCancel
+        }
+
+        guard let restorePowerLimitAction else {
+            return keepAppOpenAfterRestoreFailure("功耗控制状态尚未读取，无法确认已恢复默认值。")
+        }
+        let restoration = restorePowerLimitAction()
+        guard restoration.success else {
+            return keepAppOpenAfterRestoreFailure(restoration.detail)
+        }
+        return .terminateNow
+    }
+
     func setDockIconVisible(_ visible: Bool) {
         NSApp.setActivationPolicy(visible ? .regular : .accessory)
         if visible {
@@ -42,7 +71,40 @@ final class GHControlAppDelegate: NSObject, NSApplicationDelegate {
     }
 
     @objc private func menuBarIconClicked() {
+        if let event = NSApp.currentEvent,
+           event.type == .rightMouseUp || event.modifierFlags.contains(.control),
+           let button = statusItem?.button {
+            let menu = NSMenu()
+            let openItem = NSMenuItem(title: "打开 GH Control", action: #selector(openMainWindowFromMenu), keyEquivalent: "")
+            openItem.target = self
+            menu.addItem(openItem)
+            menu.addItem(.separator())
+            let quitItem = NSMenuItem(title: "退出 GH Control…", action: #selector(terminateFromMenu), keyEquivalent: "")
+            quitItem.target = self
+            menu.addItem(quitItem)
+            NSMenu.popUpContextMenu(menu, with: event, for: button)
+            return
+        }
         showMainWindow()
+    }
+
+    @objc private func openMainWindowFromMenu() {
+        showMainWindow()
+    }
+
+    @objc private func terminateFromMenu() {
+        NSApp.terminate(nil)
+    }
+
+    private func keepAppOpenAfterRestoreFailure(_ detail: String) -> NSApplication.TerminateReply {
+        NSApp.activate(ignoringOtherApps: true)
+        let alert = NSAlert()
+        alert.alertStyle = .warning
+        alert.messageText = "未能确认驱动已接受 75 W 请求"
+        alert.informativeText = "\(detail)\n\nGH Control 会保持打开，避免常规退出后遗留低功耗请求。请检查驱动连接、重试恢复 75 W，再退出。"
+        alert.addButton(withTitle: "返回 GH Control")
+        _ = alert.runModal()
+        return .terminateCancel
     }
 
     private func installMenuBarStatusItem() {
@@ -54,6 +116,7 @@ final class GHControlAppDelegate: NSObject, NSApplicationDelegate {
             button.toolTip = "GH Control · GPU 功耗控制"
             button.target = self
             button.action = #selector(menuBarIconClicked)
+            button.sendAction(on: [.leftMouseUp, .rightMouseUp])
         }
         statusItem = item
     }
@@ -99,13 +162,21 @@ final class GHControlAppDelegate: NSObject, NSApplicationDelegate {
 
     private func showMainWindow() {
         NSApp.activate(ignoringOtherApps: true)
-        if let window = NSApp.windows.first(where: { $0.title == "GH Control" && $0.isVisible }) {
+        if let window = NSApp.windows.first(where: { $0.title == "GH Control" }) {
+            if window.isMiniaturized {
+                window.deminiaturize(nil)
+            }
             window.makeKeyAndOrderFront(nil)
             return
         }
-        openMainWindowAction?()
+        guard !isOpeningMainWindow, let openMainWindowAction else { return }
+        isOpeningMainWindow = true
+        openMainWindowAction()
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
-            NSApp.windows.first(where: { $0.title == "GH Control" })?.makeKeyAndOrderFront(nil)
+            self.isOpeningMainWindow = false
+            if let window = NSApp.windows.first(where: { $0.title == "GH Control" }) {
+                window.makeKeyAndOrderFront(nil)
+            }
         }
     }
 }
@@ -124,6 +195,12 @@ struct GHControlApp: App {
         .windowResizability(.contentSize)
         .commands {
             CommandGroup(replacing: .newItem) {}
+            CommandGroup(replacing: .appTermination) {
+                Button("退出 GH Control…") {
+                    NSApp.terminate(nil)
+                }
+                .keyboardShortcut("q")
+            }
         }
     }
 }

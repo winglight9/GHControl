@@ -218,7 +218,12 @@ struct TuningView: View {
             if let writeMessage = model.powerWriteMessage ?? state?.lastWriteMessage {
                 Text(writeMessage)
                     .font(.callout)
-                    .foregroundStyle(writeMessage.contains("失败") ? .orange : .green)
+                    .foregroundStyle(
+                        writeMessage.contains("失败")
+                            || writeMessage.contains("未能")
+                            || writeMessage.contains("无法")
+                            ? .orange : .green
+                    )
                     .fixedSize(horizontal: false, vertical: true)
             }
 
@@ -473,11 +478,15 @@ struct TuningView: View {
                 }
             }
             Spacer(minLength: 8)
-            StatusPill(
-                title: propertyDetected ? "属性可见" : "尚未应用",
-                tint: .orange,
-                symbol: propertyDetected ? "info.circle.fill" : "clock"
-            )
+            HStack(spacing: 5) {
+                Image(systemName: propertyDetected ? "checkmark.circle" : "clock")
+                    .font(.caption2)
+                    .foregroundStyle(propertyDetected ? Color.secondary : Color.orange.opacity(0.8))
+                Text(propertyDetected ? "属性可见" : "尚未应用")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            .padding(.top, 3)
         }
         .padding(18)
         .background(.background, in: RoundedRectangle(cornerRadius: 18))
