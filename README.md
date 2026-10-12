@@ -25,7 +25,7 @@ This app depends on a private, macOS-version-specific AMD driver interface and i
 
 ## Install
 
-1. Download and double-click `GHControl-0.7.0.dmg`.
+1. Download the [latest GH Control DMG](https://github.com/winglight9/GHControl/releases/latest) and double-click it.
 2. Drag `GHControl.app` onto the **Applications** shortcut in the opened window.
 3. Open GH Control. If macOS blocks the first launch because the app is not signed/notarized, Control-click it in Applications, choose **Open**, and confirm.
 
@@ -78,7 +78,7 @@ GH Control 是面向 Intel Hades Canyon 冥王峡谷中 **Radeon RX Vega M GH** 
 
 ### 安装
 
-1. 下载并双击打开 `GHControl-0.7.0.dmg`。
+1. 从 [GitHub 最新版](https://github.com/winglight9/GHControl/releases/latest) 下载 DMG 并双击打开。
 2. 将 `GHControl.app` 拖入窗口中的 **Applications（应用程序）** 快捷方式。
 3. 打开 GH Control。如果 macOS 因应用未签名/公证而拦截首次启动，请在“应用程序”中按住 Control 键并点击应用，选择“打开”，再确认。
 
